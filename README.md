@@ -43,6 +43,18 @@ pip install -e .
 The `pip install -e .` step also installs runtime dependencies such as `graphviz`, `matplotlib`, `networkx`, `numpy`, `pandas`, and `pillow`.
 
 ## Quick start
+## API usage refresher
+The current release ships a purely functional surface area—grab a fresh config for every session, mutate in place, then pass it into whichever helper you need:
+
+- `default_visualizer_config()` – factory for a clean `VisualizerConfig`. Use `.copy()` when you want to fork an existing setup without touching the original.
+- `visualize(value, *, name, config)` – the one-stop renderer. It automatically applies converter pipelines each recursion layer, so nested NumPy/pandas objects remain supported.
+- `visualize_trace(trace, *, config, max_frames=None)` / `visualize_traces(traces, *, config, max_frames=None)` – drop-in renderers for `Trace` objects produced by StepTracer. Frame titles now render as `name [step N]` for quick scanning.
+- `visualize_algorithm(source, *, watch_variables, config, max_frames=None)` – runs StepTracer end to end (transform → execute → query engine filter → render) so users can call a single function.
+- `trace_algorithm()` + `build_traces()` – keep these handy if you need to post-process events before rendering. Watch filters accept strings, dicts, or `WatchFilter` instances to disambiguate duplicate variable names.
+- `VisualizerConfig.with_converters(...)` – compose converter pipelines (NumPy → list, pandas → dict, custom tensor adapters) at construction time. Converters fire once per recursion layer to avoid unnecessary copies.
+
+With this pattern the README examples stay accurate even as we add more renderers—the entry points don’t change, and everything flows through a `VisualizerConfig` instance that you own.
+
 
 ### Direct data visualization
 ```python
@@ -217,14 +229,3 @@ If `step-tracer` is missing, the helpers raise `StepTracerUnavailableError` with
 - **`pip` missing inside a new env** – run `python -m ensurepip --upgrade` and retry `python -m pip install -e .`.
 - **Graph payload not detected** – either conform to the `{nodes, edges, directed}` mapping shown above or register a custom converter that rewrites your structure into that shape.
 - **Need different configs per visualization** – instantiate a new config via `default_visualizer_config()` or `config.copy()` rather than mutating a module-level singleton. This keeps concurrent notebooks or services from tripping over shared state.
-
-## Roadmap: Phase 2 (Web)
-We’re actively shaping a second-stage "web mode" so the same Graphviz-first pipeline can play nicely with browsers:
-
-- **Animated traces** – experiment with [magjac/d3-graphviz](https://github.com/magjac/d3-graphviz) to animate a variable across frames (e.g., `queue_state [step 1..N]`). Not every view maps cleanly to SVG animation yet, so we’re prototyping fallbacks.
-- **Deployment options** – evaluate two integration paths:
-  1. Ship the Python library alongside a thin frontend (JupyterLite, Pyodide, or custom WASM runner) so browsers execute the exact same Python renderers.
-  2. Keep Python on the server, stream rendered DOT/SVG/PNG artifacts (or Graphviz JSON) to a JS client, and let the client animate or stitch frames.
-- **API surface for the web** – define a richer payload format (step metadata, transitions, frame durations) so frontends have enough context to animate without guessing.
-
-Feedback is welcome—open an issue if you want to collaborate on the browser-facing workflow or have ideas for animation-friendly payloads.
